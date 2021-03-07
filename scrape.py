@@ -7,10 +7,10 @@ import pandas as pd
 import urllib
 import numpy as np
 #%%
-tqdm.pandas()
-#%%
 lookup_url = 'https://www.set.or.th/set/commonslookup.do?language=en&country=US&prefix={prefix}'
 factsheet_url = 'https://www.set.or.th/set/factsheet.do?symbol={symbol}&ssoPageId=3&language=en&country=US'
+export_filepath = './reports/analysis.csv'
+tqdm.pandas()
 
 
 #%%
@@ -46,8 +46,8 @@ def get_dividend_df(factsheet: list[DataFrame]) -> DataFrame:
     except Exception:
         return None
 
-    # return df[(df['Unit'] == 'Baht') & (df.op_start.dt.year == 2020)]
-    return df[(df['Unit'] == 'Baht') & ((df.op_start.dt.year == 2020) | (df.op_start.dt.year == 2021))]
+    return df[(df['Unit'] == 'Baht') & (df.op_start.dt.year == 2020)]
+    # return df[(df['Unit'] == 'Baht') & ((df.op_start.dt.year == 2020) | (df.op_start.dt.year == 2021))]
 
 
 def get_price_df(factsheet: list[DataFrame]) -> DataFrame:
@@ -87,9 +87,6 @@ stock_df = get_stock_dataframe()
 stock_df = stock_df.reset_index(drop=True)
 stock_df
 
-#%%
-stock_df
-
 
 # %%
 factsheets = {
@@ -123,9 +120,5 @@ stock_df['latest_dividend_over_std'] = stock_df.latest_dividend * (12 / stock_df
 stock_df['payment_count'] = stock_df.op_start_date.apply(len)
 stock_df['sum_over_std'] = stock_df.sum_dividend / stock_df.std_dividend
 stock_df['factsheet_url'] = stock_df.loc[:, 'Symbol'].apply(lambda x: factsheet_url.format(symbol=x))
+stock_df.to_csv(export_filepath)
 stock_df
-stock_df
-# stock_df.to_excel('~/Downloads/analysis.xlsx')
-stock_df.to_csv('~/Downloads/analysis.csv')
-
-# %%
