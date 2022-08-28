@@ -7,5 +7,5 @@ This is a script to scrape all stock symbols from SET and MAI market, then extra
 
 # Running
 1. Run ```$ poetry install``` to install its dependencies
-1. Run script with ```$ poetry run python scrapy.py```
+1. Run script with ```$ poetry run python scrape.py```
 1. The result will be saved at ```./reports/analysis.csv```
