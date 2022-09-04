@@ -115,11 +115,11 @@ stock_df['op_period'] = stock_df.progress_apply(
     lambda x: get_operation_period(factsheets[x['Symbol']]), axis=1
 )
 
-stock_df['std_dividend'] = stock_df.dividends.apply(np.std)
 stock_df['avg_dividend'] = stock_df.dividends.apply(np.average)
+stock_df['latest_dividend'] = stock_df.dividends.apply(lambda x: (x or [0])[0])
+stock_df['std_dividend'] = stock_df.dividends.apply(np.std)
 stock_df['avg_dividend_ratio'] = stock_df.avg_dividend * ( 12 / stock_df.op_period) / stock_df.price
 stock_df['avg_over_std'] = stock_df.avg_dividend_ratio / stock_df.std_dividend
-stock_df['latest_dividend'] = stock_df.dividends.apply(lambda x: (x or [0])[0])
 stock_df['latest_dividend_ratio'] = stock_df.latest_dividend * ( 12 / stock_df.op_period) / stock_df.price
 stock_df['latest_dividend_over_std'] = stock_df.latest_dividend_ratio / stock_df.std_dividend
 stock_df['payment_count'] = stock_df.op_start_date.apply(len)
