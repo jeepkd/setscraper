@@ -9,6 +9,7 @@ import numpy as np
 #%%
 lookup_url = 'https://www.set.or.th/set/commonslookup.do?language=en&country=US&prefix={prefix}'
 factsheet_url = 'https://www.set.or.th/set/factsheet.do?symbol={symbol}&ssoPageId=3&language=en&country=US'
+factsheet_url_th = 'https://www.set.or.th/set/factsheet.do?symbol={symbol}&ssoPageId=3&language=th&country=TH'
 export_filepath = './reports/analysis.csv'
 tqdm.pandas()
 
@@ -114,16 +115,13 @@ stock_df['sum_dividend'] = stock_df.dividends.apply(sum)
 stock_df['std_dividend'] = stock_df.dividends.apply(np.std)
 stock_df['sum_dividend_ratio'] = stock_df.sum_dividend / stock_df.price
 stock_df['latest_dividend'] = stock_df.dividends.apply(lambda x: (x or [0])[0])
-stock_df['latest_dividend_ratio'] = stock_df.latest_dividend * (
-    12 / stock_df.op_period
-) / stock_df.price
-stock_df['latest_dividend_over_std'] = stock_df.latest_dividend * (
-    12 / stock_df.op_period
-) / stock_df.price / stock_df.std_dividend
+stock_df['latest_dividend_ratio'] = stock_df.latest_dividend * ( 12 / stock_df.op_period) / stock_df.price
+stock_df['latest_dividend_over_std'] = stock_df.latest_dividend_ratio / stock_df.std_dividend
 stock_df['payment_count'] = stock_df.op_start_date.apply(len)
 stock_df['sum_over_std'] = stock_df.sum_dividend / stock_df.std_dividend
-stock_df['factsheet_url'] = stock_df.loc[:, 'Symbol'].apply(
-    lambda x: factsheet_url.format(symbol=x)
-)
+stock_df['factsheet_url'] = stock_df.loc[:, 'Symbol'].apply( lambda x: factsheet_url.format(symbol=x))
+stock_df['factsheet_url_th'] = stock_df.loc[:, 'Symbol'].apply( lambda x: factsheet_url_th.format(symbol=x))
 stock_df.to_csv(export_filepath)
 stock_df
+
+# %%
