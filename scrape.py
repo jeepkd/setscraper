@@ -40,8 +40,10 @@ def get_dividend_df(factsheet: list[DataFrame]) -> DataFrame:
         return None
     try:
         df['payment_datetime'] = pd.to_datetime(df['Payment Date'])
-        df[['op_start', 'op_end']] = df['Operation Period'].str.split(' - ', expand=True)
-        df[['op_start', 'op_end']] = df[['op_start', 'op_end']].apply(pd.to_datetime)
+        df[['op_start',
+            'op_end']] = df['Operation Period'].str.split(' - ', expand=True)
+        df[['op_start', 'op_end']] = df[['op_start',
+                                         'op_end']].apply(pd.to_datetime)
         df['op_period'] = df.op_end.dt.month - df.op_start.dt.month + 1
     except Exception:
         return None
@@ -87,13 +89,11 @@ stock_df = get_stock_dataframe()
 stock_df = stock_df.reset_index(drop=True)
 stock_df
 
-
 # %%
 factsheets = {
     row['Symbol']: get_factsheet(row['Symbol'])
     for _, row in tqdm(stock_df.iterrows())
 }
-
 
 # %%
 stock_df['price'] = stock_df.progress_apply(
@@ -109,16 +109,21 @@ stock_df['op_period'] = stock_df.progress_apply(
     lambda x: get_operation_period(factsheets[x['Symbol']]), axis=1
 )
 
-
 #%%
 stock_df['sum_dividend'] = stock_df.dividends.apply(sum)
 stock_df['std_dividend'] = stock_df.dividends.apply(np.std)
 stock_df['sum_dividend_ratio'] = stock_df.sum_dividend / stock_df.price
 stock_df['latest_dividend'] = stock_df.dividends.apply(lambda x: (x or [0])[0])
-stock_df['latest_dividend_ratio'] = stock_df.latest_dividend * (12 / stock_df.op_period) / stock_df.price
-stock_df['latest_dividend_over_std'] = stock_df.latest_dividend * (12 / stock_df.op_period) / stock_df.price / stock_df.std_dividend
+stock_df['latest_dividend_ratio'] = stock_df.latest_dividend * (
+    12 / stock_df.op_period
+) / stock_df.price
+stock_df['latest_dividend_over_std'] = stock_df.latest_dividend * (
+    12 / stock_df.op_period
+) / stock_df.price / stock_df.std_dividend
 stock_df['payment_count'] = stock_df.op_start_date.apply(len)
 stock_df['sum_over_std'] = stock_df.sum_dividend / stock_df.std_dividend
-stock_df['factsheet_url'] = stock_df.loc[:, 'Symbol'].apply(lambda x: factsheet_url.format(symbol=x))
+stock_df['factsheet_url'] = stock_df.loc[:, 'Symbol'].apply(
+    lambda x: factsheet_url.format(symbol=x)
+)
 stock_df.to_csv(export_filepath)
 stock_df
