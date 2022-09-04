@@ -9,7 +9,7 @@ import numpy as np
 #%%
 lookup_url = 'https://www.set.or.th/set/commonslookup.do?language=en&country=US&prefix={prefix}'
 factsheet_url = 'https://www.set.or.th/set/factsheet.do?symbol={symbol}&ssoPageId=3&language=en&country=US'
-factsheet_url_th = 'https://www.set.or.th/set/factsheet.do?symbol={symbol}&ssoPageId=3&language=th&country=TH'
+factsheet_url_th = 'https://www.set.or.th/th/market/product/stock/quote/{symbol}/factsheet'
 export_filepath = './reports/analysis.csv'
 tqdm.pandas()
 
@@ -67,7 +67,7 @@ def get_price(factsheet: DataFrame) -> float:
     return float(df.iloc[0, 0])
 
 
-def get_lastest_dividend(factsheet):
+def get_latest_dividend(factsheet):
     df = get_dividend_df(factsheet)
     if df is None:
         return []
@@ -79,6 +79,13 @@ def get_operation_start_date(factsheet):
     if df is None:
         return []
     return df['op_start'].to_list()
+
+
+def get_last_paid_date(factsheet):
+    df = get_dividend_df(factsheet)
+    if df is None:
+        return None
+    return df['op_end'].values[0]
 
 
 def get_operation_period(factsheet):
@@ -106,7 +113,7 @@ stock_df['price'] = stock_df.progress_apply(
     lambda x: get_price(factsheets[x['Symbol']]), axis=1
 )
 stock_df['dividends'] = stock_df.progress_apply(
-    lambda x: get_lastest_dividend(factsheets[x['Symbol']]), axis=1
+    lambda x: get_latest_dividend(factsheets[x['Symbol']]), axis=1
 )
 stock_df['op_start_date'] = stock_df.progress_apply(
     lambda x: get_operation_start_date(factsheets[x['Symbol']]), axis=1
@@ -123,8 +130,13 @@ stock_df['avg_over_std'] = stock_df.avg_dividend_ratio / stock_df.std_dividend
 stock_df['latest_dividend_ratio'] = stock_df.latest_dividend * ( 12 / stock_df.op_period) / stock_df.price
 stock_df['latest_dividend_over_std'] = stock_df.latest_dividend_ratio / stock_df.std_dividend
 stock_df['payment_count'] = stock_df.op_start_date.apply(len)
+stock_df['last_paid'] = stock_df.progress_apply(
+    lambda x: get_last_paid_date(factsheets[x['Symbol']]), axis=1
+)
 stock_df['factsheet_url'] = stock_df.loc[:, 'Symbol'].apply( lambda x: factsheet_url.format(symbol=x))
 stock_df['factsheet_url_th'] = stock_df.loc[:, 'Symbol'].apply( lambda x: factsheet_url_th.format(symbol=x))
+
+
 stock_df.to_csv(export_filepath)
 stock_df
 
