@@ -45,12 +45,15 @@ def get_dividend_df(factsheet: list[DataFrame]) -> DataFrame:
             'op_end']] = df['Operation Period'].str.split(' - ', expand=True)
         df[['op_start', 'op_end']] = df[['op_start',
                                          'op_end']].apply(pd.to_datetime)
-        df['op_period'] = df.op_end.dt.month - df.op_start.dt.month + 1
+        diff_months =  df.op_end.dt.month - df.op_start.dt.month
+        diff_years = df.op_end.dt.year - df.op_start.dt.year
+
+        df['op_period'] = diff_years * 12 + diff_months + 1
+
     except Exception:
         return None
 
-    return df[(df['Unit'] == 'Baht') & (df.op_start.dt.year == 2020)]
-    # return df[(df['Unit'] == 'Baht') & ((df.op_start.dt.year == 2020) | (df.op_start.dt.year == 2021))]
+    return df[(df['Unit'] == 'Baht')]
 
 
 def get_price_df(factsheet: list[DataFrame]) -> DataFrame:
@@ -82,7 +85,8 @@ def get_operation_period(factsheet):
     df = get_dividend_df(factsheet)
     if df is None or len(df) == 0:
         return 0
-    return df['op_period'].to_list()[0]
+    period = df['op_period'].to_list()[0]
+    return period
 
 
 # %%
@@ -91,9 +95,10 @@ stock_df = stock_df.reset_index(drop=True)
 stock_df
 
 # %%
+total = stock_df.count()['Symbol']
 factsheets = {
     row['Symbol']: get_factsheet(row['Symbol'])
-    for _, row in tqdm(stock_df.iterrows())
+    for _, row in tqdm(stock_df.iterrows(), total=total)
 }
 
 # %%
@@ -110,15 +115,14 @@ stock_df['op_period'] = stock_df.progress_apply(
     lambda x: get_operation_period(factsheets[x['Symbol']]), axis=1
 )
 
-#%%
-stock_df['sum_dividend'] = stock_df.dividends.apply(sum)
 stock_df['std_dividend'] = stock_df.dividends.apply(np.std)
-stock_df['sum_dividend_ratio'] = stock_df.sum_dividend / stock_df.price
+stock_df['avg_dividend'] = stock_df.dividends.apply(np.average)
+stock_df['avg_dividend_ratio'] = stock_df.avg_dividend * ( 12 / stock_df.op_period) / stock_df.price
+stock_df['avg_over_std'] = stock_df.avg_dividend_ratio / stock_df.std_dividend
 stock_df['latest_dividend'] = stock_df.dividends.apply(lambda x: (x or [0])[0])
 stock_df['latest_dividend_ratio'] = stock_df.latest_dividend * ( 12 / stock_df.op_period) / stock_df.price
 stock_df['latest_dividend_over_std'] = stock_df.latest_dividend_ratio / stock_df.std_dividend
 stock_df['payment_count'] = stock_df.op_start_date.apply(len)
-stock_df['sum_over_std'] = stock_df.sum_dividend / stock_df.std_dividend
 stock_df['factsheet_url'] = stock_df.loc[:, 'Symbol'].apply( lambda x: factsheet_url.format(symbol=x))
 stock_df['factsheet_url_th'] = stock_df.loc[:, 'Symbol'].apply( lambda x: factsheet_url_th.format(symbol=x))
 stock_df.to_csv(export_filepath)
