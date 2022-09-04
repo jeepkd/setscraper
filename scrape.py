@@ -67,6 +67,16 @@ def get_price(factsheet: DataFrame) -> float:
     return float(df.iloc[0, 0])
 
 
+def get_price_range_52w(factsheet: DataFrame) -> float:
+    df = get_price_df(factsheet)
+    string = df.iloc[0, 1].replace('\xa0', u' ')
+    try:
+        high, low = [float(x) for x in string.split(' / ')]
+        return (high - low) / high
+    except:
+        return None
+
+
 def get_latest_dividend(factsheet):
     df = get_dividend_df(factsheet)
     if df is None:
@@ -124,6 +134,9 @@ stock_df['op_period'] = stock_df.progress_apply(
 
 stock_df['avg_dividend'] = stock_df.dividends.apply(np.average)
 stock_df['latest_dividend'] = stock_df.dividends.apply(lambda x: (x or [0])[0])
+stock_df['price_range_52w'] = stock_df.progress_apply(
+    lambda x: get_price_range_52w(factsheets[x['Symbol']]), axis=1
+)
 stock_df['std_dividend'] = stock_df.dividends.apply(np.std)
 stock_df['avg_dividend_ratio'] = stock_df.avg_dividend * ( 12 / stock_df.op_period) / stock_df.price
 stock_df['avg_over_std'] = stock_df.avg_dividend_ratio / stock_df.std_dividend
