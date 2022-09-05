@@ -154,3 +154,4 @@ stock_df.to_csv(export_filepath)
 stock_df
 
 # %%
+print(f"Successfully scraped. The output file is at {export_filepath}")
