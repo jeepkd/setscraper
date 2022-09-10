@@ -14,6 +14,7 @@ lookup_url = 'https://www.set.or.th/set/commonslookup.do?language=en&country=US&
 factsheet_url = 'https://www.set.or.th/set/factsheet.do?symbol={symbol}&ssoPageId=3&language=en&country=US'
 factsheet_url_th = 'https://www.set.or.th/th/market/product/stock/quote/{symbol}/factsheet'
 export_filepath = './reports/analysis.csv'
+data_json_filepath = './reports/data.json'
 tqdm.pandas()
 
 
@@ -114,7 +115,7 @@ stock_df = get_stock_dataframe()
 stock_df = stock_df.reset_index(drop=True)
 stock_df
 
-# %%
+# %% extract data from factsheets
 total = stock_df.count()['Symbol']
 factsheets = {
     row['Symbol']: get_factsheet(row['Symbol'])
@@ -122,6 +123,12 @@ factsheets = {
 }
 
 # %%
+stock_df['type'] = 'company'
+stock_df.loc[stock_df['Company/Security Name'].str.contains('TRUST'),
+             'type'] = 'trust'
+stock_df.loc[stock_df['Company/Security Name'].str.contains('FUND'),
+             'type'] = 'fund'
+
 stock_df['price'] = stock_df.progress_apply(
     lambda x: get_price(factsheets[x['Symbol']]), axis=1
 )
@@ -134,6 +141,7 @@ stock_df['op_start_date'] = stock_df.progress_apply(
 stock_df['op_period'] = stock_df.progress_apply(
     lambda x: get_operation_period(factsheets[x['Symbol']]), axis=1
 )
+stock_df['payment_count'] = stock_df.op_start_date.apply(len)
 
 stock_df['avg_dividend'] = stock_df.dividends.apply(np.average)
 stock_df['latest_dividend'] = stock_df.dividends.apply(lambda x: (x or [0])[0])
@@ -149,7 +157,6 @@ stock_df['latest_dividend_ratio'] = stock_df.latest_dividend * (
 ) / stock_df.price
 stock_df['latest_dividend_over_std'
         ] = stock_df.latest_dividend_ratio / stock_df.std_dividend
-stock_df['payment_count'] = stock_df.op_start_date.apply(len)
 stock_df['last_paid'] = stock_df.progress_apply(
     lambda x: get_last_paid_date(factsheets[x['Symbol']]), axis=1
 )
@@ -160,26 +167,13 @@ stock_df['factsheet_url_th'] = stock_df.loc[:, 'Symbol'].apply(
     lambda x: factsheet_url_th.format(symbol=x)
 )
 
-stock_df.to_csv(export_filepath)
-stock_df
+df = stock_df.drop(['dividends', 'op_start_date'], axis=1)
+df.to_csv(export_filepath)
+df.to_json(data_json_filepath)
+df
 
 # %%
 print(f"Successfully scraped. The output file is at {export_filepath}")
-
-# %%
-stock_df['type'] = 'company'
-stock_df.loc[stock_df['Company/Security Name'].str.contains('TRUST'),
-             'type'] = 'trust'
-stock_df.loc[stock_df['Company/Security Name'].str.contains('FUND'),
-             'type'] = 'fund'
-
-filtered_columns = [
-    'Symbol', 'Company/Security Name', 'type', 'price', 'avg_dividend',
-    'latest_dividend', 'price_range_52w', 'std_dividend', 'avg_dividend_ratio',
-    'avg_over_std', 'latest_dividend_ratio', 'latest_dividend_over_std',
-    'payment_count', 'last_paid', 'factsheet_url', 'factsheet_url_th'
-]
-df = stock_df[filtered_columns]
 
 # %% explore
 selection = alt.selection_multi(fields=['type'])
