@@ -15,6 +15,7 @@ factsheet_url = 'https://www.set.or.th/set/factsheet.do?symbol={symbol}&ssoPageI
 factsheet_url_th = 'https://www.set.or.th/th/market/product/stock/quote/{symbol}/factsheet'
 export_filepath = './reports/analysis.csv'
 data_json_filepath = './reports/data.json'
+export_chart_filepath = './reports/chart.json'
 tqdm.pandas()
 
 
@@ -214,7 +215,9 @@ legend = alt.Chart(df).mark_point().encode(
 scatter | legend
 
 # %%
-alt.Chart(df).mark_circle().encode(
+import altair_saver
+
+chart = alt.Chart(df).mark_circle().encode(
     x=alt.X('price_range_52w', type='quantitative', axis=alt.Axis(format='%')),
     y='avg_dividend_ratio',
     color=alt.Color(
@@ -227,6 +230,9 @@ alt.Chart(df).mark_circle().encode(
 ).transform_filter(
     alt.FieldOneOfPredicate(field='type', oneOf=['fund', 'trust'])
 ).interactive()
+chart.save('./reports/chart.json')
+altair_saver.save(chart, './reports/chart.vl.json')
+altair_saver.save(chart, './reports/chart.vg.json')
 
 # %% violin plot
 y_field = 'avg_over_std'
