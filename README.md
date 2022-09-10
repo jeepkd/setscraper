@@ -1,11 +1,3 @@
-- [SET Scraper](#set-scraper)
-- [Requirements](#requirements)
-- [Running](#running)
-- [Running Dashboard](#running-dashboard)
-  - [Getting Started](#getting-started)
-  - [Learn More](#learn-more)
-  - [Deploy on Vercel](#deploy-on-vercel)
-
 # SET Scraper
 This is a script to scrape all stock symbols from SET and MAI market, then extract some dividend info from their factsheets.
 Hope this help you find next dividend stocks to invest
