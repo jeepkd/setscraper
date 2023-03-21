@@ -1,157 +1,112 @@
 #%%
-from pandas.core.frame import DataFrame
-from tqdm.auto import tqdm
 import requests
-import string
+stock_list_url = "https://www.set.or.th/api/set/stock/list"
+
+data = requests.get(stock_list_url).json()
+stocks = data['securitySymbols']
+stocks = [s for s in stocks if s['securityType'] == 'S']
+stocks
+
+# %%
+symbols = [s['symbol'] for s in stocks]
+
+# %%
 import pandas as pd
-import urllib
-import numpy as np
-#%%
-lookup_url = 'https://www.set.or.th/set/commonslookup.do?language=en&country=US&prefix={prefix}'
-factsheet_url = 'https://www.set.or.th/set/factsheet.do?symbol={symbol}&ssoPageId=3&language=en&country=US'
-factsheet_url_th = 'https://www.set.or.th/th/market/product/stock/quote/{symbol}/factsheet'
-export_filepath = './reports/analysis.csv'
-tqdm.pandas()
-
-
-#%%
-def get_stocks_from_prefix(prefix: str) -> DataFrame:
-    url = lookup_url.format(prefix=prefix)
-    response = requests.get(url)
-    dfs = pd.read_html(response.text)
-    return dfs[0]
-
-
-def get_stock_dataframe() -> DataFrame:
-    prefixes = ['NUMBER', *string.ascii_uppercase]
-    return pd.concat([get_stocks_from_prefix(prefix=p) for p in prefixes])
-
-
-def get_factsheet(symbol: str) -> list[DataFrame]:
-    url = factsheet_url.format(symbol=urllib.parse.quote(symbol))
-    response = requests.get(url)
-    return pd.read_html(response.text)
-
-
-def get_dividend_df(factsheet: list[DataFrame]) -> DataFrame:
-    df = next(df for df in factsheet if 'Dividend' in str(df.iloc[0, 0]))
-    df.columns = df.iloc[1]
-    df = df.iloc[2:]
-    if str(df.iloc[0, 0]) == 'No Information Found':
-        return None
-    try:
-        df['payment_datetime'] = pd.to_datetime(df['Payment Date'])
-        df[['op_start',
-            'op_end']] = df['Operation Period'].str.split(' - ', expand=True)
-        df[['op_start', 'op_end']] = df[['op_start',
-                                         'op_end']].apply(pd.to_datetime)
-        diff_months =  df.op_end.dt.month - df.op_start.dt.month
-        diff_years = df.op_end.dt.year - df.op_start.dt.year
-
-        df['op_period'] = diff_years * 12 + diff_months + 1
-
-    except Exception:
-        return None
-
-    return df[(df['Unit'] == 'Baht')]
-
-
-def get_price_df(factsheet: list[DataFrame]) -> DataFrame:
-    df = next(df for df in factsheet if 'Price' in str(df.iloc[0, 0]))
-    df.columns = df.iloc[0]
-    return df.iloc[1:]
-
-
-def get_price(factsheet: DataFrame) -> float:
-    df = get_price_df(factsheet)
-    return float(df.iloc[0, 0])
-
-
-def get_price_range_52w(factsheet: DataFrame) -> float:
-    df = get_price_df(factsheet)
-    string = df.iloc[0, 1].replace('\xa0', u' ')
-    try:
-        high, low = [float(x) for x in string.split(' / ')]
-        return (high - low) / high
-    except:
-        return None
-
-
-def get_latest_dividend(factsheet):
-    df = get_dividend_df(factsheet)
-    if df is None:
-        return []
-    return df['Dividend/Share'].astype(float).to_list()
-
-
-def get_operation_start_date(factsheet):
-    df = get_dividend_df(factsheet)
-    if df is None:
-        return []
-    return df['op_start'].to_list()
-
-
-def get_last_paid_date(factsheet):
-    df = get_dividend_df(factsheet)
-    if df is None:
-        return None
-    return df['op_end'].values[0]
-
-
-def get_operation_period(factsheet):
-    df = get_dividend_df(factsheet)
-    if df is None or len(df) == 0:
-        return 0
-    period = df['op_period'].to_list()[0]
-    return period
-
+data_df = pd.DataFrame(stocks)
+# data_df = data_df[data_df.securityType == 'S']
+data_df
 
 # %%
-stock_df = get_stock_dataframe()
-stock_df = stock_df.reset_index(drop=True)
+stock_df = data_df[['symbol', 'nameTH', 'nameEN', 'market', 'industry', 'sector', 'isIFF']]
 stock_df
 
 # %%
-total = stock_df.count()['Symbol']
-factsheets = {
-    row['Symbol']: get_factsheet(row['Symbol'])
-    for _, row in tqdm(stock_df.iterrows(), total=total)
-}
+from pqdm.threads import pqdm
 
-# %%
-stock_df['price'] = stock_df.progress_apply(
-    lambda x: get_price(factsheets[x['Symbol']]), axis=1
-)
-stock_df['dividends'] = stock_df.progress_apply(
-    lambda x: get_latest_dividend(factsheets[x['Symbol']]), axis=1
-)
-stock_df['op_start_date'] = stock_df.progress_apply(
-    lambda x: get_operation_start_date(factsheets[x['Symbol']]), axis=1
-)
-stock_df['op_period'] = stock_df.progress_apply(
-    lambda x: get_operation_period(factsheets[x['Symbol']]), axis=1
-)
+dividend_url = "https://www.set.or.th/api/set/stock/{symbol}/corporate-action/historical?caType=XD&lang=th"
+info_url = "https://www.set.or.th/api/set/stock/{symbol}/info?lang=th"
+profile_url = "https://www.set.or.th/api/set/factsheet/{symbol}/profile?lang=th"
 
-stock_df['avg_dividend'] = stock_df.dividends.apply(np.average)
-stock_df['latest_dividend'] = stock_df.dividends.apply(lambda x: (x or [0])[0])
-stock_df['price_range_52w'] = stock_df.progress_apply(
-    lambda x: get_price_range_52w(factsheets[x['Symbol']]), axis=1
-)
-stock_df['std_dividend'] = stock_df.dividends.apply(np.std)
-stock_df['avg_dividend_ratio'] = stock_df.avg_dividend * ( 12 / stock_df.op_period) / stock_df.price
-stock_df['avg_over_std'] = stock_df.avg_dividend_ratio / stock_df.std_dividend
-stock_df['latest_dividend_ratio'] = stock_df.latest_dividend * ( 12 / stock_df.op_period) / stock_df.price
-stock_df['latest_dividend_over_std'] = stock_df.latest_dividend_ratio / stock_df.std_dividend
-stock_df['payment_count'] = stock_df.op_start_date.apply(len)
-stock_df['last_paid'] = stock_df.progress_apply(
-    lambda x: get_last_paid_date(factsheets[x['Symbol']]), axis=1
-)
-stock_df['factsheet_url'] = stock_df.loc[:, 'Symbol'].apply( lambda x: factsheet_url.format(symbol=x))
-stock_df['factsheet_url_th'] = stock_df.loc[:, 'Symbol'].apply( lambda x: factsheet_url_th.format(symbol=x))
+def get_info(symbol: str) -> dict:
+    info = requests.get(info_url.format(symbol=symbol)).json()
+    profile = requests.get(profile_url.format(symbol=symbol)).json()
+    return {**info, **profile}
+
+stock_infos = pqdm(symbols, get_info, n_jobs=32, argument_type='el')
+stock_infos
 
 
-stock_df.to_csv(export_filepath)
+#%%
+def reformat_date(date_str: str) -> str:
+    if not date_str:
+        return ''
+    data = date_str.split('/')
+    data = data[::-1]
+    while len(data) < 3:
+        data.append('01')
+    return '-'.join(data)
+
+keys = ['establishedDate', 'last', 'high52Weeks', 'low52Weeks']
+filtered_stock_infos = [{k: v for k, v in s.items() if k in keys} for s in stock_infos]
+stock_info_df = pd.DataFrame(filtered_stock_infos)
+high = stock_info_df.high52Weeks
+low = stock_info_df.low52Weeks
+stock_info_df['drawdown52Weeks'] = (low-high)/high * 100
+stock_info_df['establishedDate'] = stock_info_df.establishedDate.apply(reformat_date)
+stock_info_df
+
+
+#%%
+stock_df = pd.concat([stock_df, stock_info_df], axis=1)
+stock_df['dividendYield'] = [info['dividendYield'] for info in stock_infos]
 stock_df
 
+#%%
+def get_dividends(symbol: str) -> list:
+    return requests.get(dividend_url.format(symbol=symbol)).json()
+
+stock_dividend_lists = pqdm(symbols, get_dividends, n_jobs=32, argument_type='el')
+stock_dividend_lists
+
+#%%
+def get_dividend_summary(dividen_list: list) -> dict:
+    df = pd.DataFrame(dividen_list)
+    if len(df) == 0:
+        return {}
+
+    return {
+        "numberOfDividends": df.dividend.count(),
+        "lastEndOfOperationDate": df.endOperation.iloc[0],
+        "lastPaymentDate": df.paymentDate.iloc[0],
+        "stdOfDividends": df.dividend.std(),
+    }
+
+dividend_df = pd.DataFrame([get_dividend_summary(l) for l in stock_dividend_lists])
+dividend_df
+
 # %%
-print(f"Successfully scraped. The output file is at {export_filepath}")
+result_df = pd.concat([stock_df, dividend_df], axis=1)
+result_df['yield'] = result_df.dividendYield
+result_df['yieldOverStd'] = result_df.dividendYield / result_df.stdOfDividends
+result_df
+
+# %%
+columns_date = ["lastEndOfOperationDate", "lastPaymentDate"]
+for c in columns_date:
+    result_df[c] = pd.to_datetime(result_df[c]).dt.strftime('%Y-%m-%d')
+
+
+# %%
+factsheet_url = "https://www.set.or.th/th/market/product/stock/quote/{symbol}/factsheet"
+factsheet_urls = [factsheet_url.format(symbol=stock['symbol']) for stock in stocks]
+result_df['factsheet'] = factsheet_urls
+result_df
+
+
+# %%
+csv_exported_uri = './reports/output.csv'
+html_exported_uri = './reports/output.html'
+result_df.to_csv(csv_exported_uri)
+print(f'Exported to {csv_exported_uri}')
+
+# %%
